@@ -1,12 +1,13 @@
 package br.com.dio.dao;
 
+import br.com.dio.entity.ContactEntity;
 import br.com.dio.entity.EmployeeEntity;
+import br.com.dio.entity.ModuleEntity;
 import br.com.dio.persistence.ConnectionUtil;
 import com.mysql.cj.jdbc.StatementImpl;
 
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -17,109 +18,116 @@ import static java.util.TimeZone.LONG;
 
 public class EmployeeParamDAO {
 
+  private final ContactDAO contactDAO = new ContactDAO();
+
+  private final AccessDAO accessDAO = new AccessDAO();
+
   public void insert(final EmployeeEntity entity) {
     try (
         var connection = ConnectionUtil.getConnection();
-        var statement = connection.prepareStatement("INSERT INTO employees (name, salary, birthdate) VALUES (?, ?, ?);");
+        var statement = connection.prepareStatement(
+            "INSERT INTO employees (name, salary, birthdate) values (?, ?, ?);"
+        )
     ) {
       statement.setString(1, entity.getName());
       statement.setBigDecimal(2, entity.getSalary());
-      statement.setTimestamp(3, Timestamp.valueOf(entity.getBirthDate().atZoneSameInstant(UTC).toLocalDateTime()));
+      statement.setTimestamp(3,
+          Timestamp.valueOf(entity.getBirthDate().atZoneSimilarLocal(UTC).toLocalDateTime())
+      );
       statement.executeUpdate();
-      if (statement instanceof StatementImpl impl) {
+      if (statement instanceof StatementImpl impl)
         entity.setId(impl.getLastInsertID());
-      }
-      int affectedRows = statement.getUpdateCount();
-      System.out.printf("Fetched %s employee record(s) from the database.%n", affectedRows);
-
-    } catch (SQLException e) {
-      System.err.println("Error inserting employee: " + e.getMessage());
+      entity.getModules().stream()
+          .map(ModuleEntity::getId)
+          .forEach(m -> accessDAO.insert(entity.getId(), m));
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
   }
 
   public void insertWithProcedure(final EmployeeEntity entity) {
     try (
         var connection = ConnectionUtil.getConnection();
-        var statement = connection.prepareCall(" CALL prc_insert_employee (?, ?, ?, ?);");
+        var statement = connection.prepareCall(
+            "call prc_insert_employee(?, ?, ?, ?);"
+        )
     ) {
       statement.registerOutParameter(1, LONG);
       statement.setString(2, entity.getName());
       statement.setBigDecimal(3, entity.getSalary());
-      statement.setTimestamp(4, Timestamp.valueOf(entity.getBirthDate().atZoneSameInstant(UTC).toLocalDateTime()));
+      statement.setTimestamp(4,
+          Timestamp.valueOf(entity.getBirthDate().atZoneSimilarLocal(UTC).toLocalDateTime())
+      );
       statement.execute();
-
       entity.setId(statement.getLong(1));
-
-      int affectedRows = statement.getUpdateCount();
-      System.out.printf("Fetched %s employee record(s) from the database.%n", affectedRows);
-
-    } catch (SQLException e) {
-      System.err.println("Error inserting employee: " + e.getMessage());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
   }
 
-  public void insertBatch(final List<EmployeeEntity> entity) {
+  public void insert(final List<EmployeeEntity> entities) {
     try (var connection = ConnectionUtil.getConnection()) {
-      var sql = "INSERT INTO employees (name, salary, birthdate) VALUES (?, ?, ?);";
+      var sql = "INSERT INTO employees (name, salary, birthdate) values (?, ?, ?);";
       try (var statement = connection.prepareStatement(sql)) {
         connection.setAutoCommit(false);
-        for (var entityEntity : entity) {
-          statement.setString(1, entityEntity.getName());
-          statement.setBigDecimal(2, entityEntity.getSalary());
-          var timestamp = Timestamp.valueOf(entityEntity.getBirthDate().atZoneSameInstant(UTC).toLocalDateTime());
+        for (int i = 0; i < entities.size(); i++) {
+          statement.setString(1, entities.get(i).getName());
+          statement.setBigDecimal(2, entities.get(i).getSalary());
+          var timestamp = Timestamp.valueOf(entities.get(i).getBirthDate().atZoneSimilarLocal(UTC)
+              .toLocalDateTime());
           statement.setTimestamp(3, timestamp);
           statement.addBatch();
+          if (i % 1000 == 0 || i == entities.size() - 1) statement.executeBatch();
         }
-        statement.executeBatch();
         connection.commit();
-      } catch (SQLException e) {
+      } catch (SQLException ex) {
         connection.rollback();
-        System.out.println(e.getMessage());
+        ex.printStackTrace();
       }
-    } catch (SQLException e) {
-      System.err.println("Error inserting employee: " + e.getMessage());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
   }
-
 
   public void update(final EmployeeEntity entity) {
     try (
         var connection = ConnectionUtil.getConnection();
-        var statement = connection.prepareStatement("UPDATE employees set name = ?, salary = ?, birthdate = ? WHERE id = ?;");
+        var statement = connection.prepareStatement(
+            "UPDATE employees set name = ?, salary = ?, birthdate = ? WHERE id = ?"
+        )
     ) {
       statement.setString(1, entity.getName());
       statement.setBigDecimal(2, entity.getSalary());
-      statement.setTimestamp(3, Timestamp.valueOf(entity.getBirthDate().atZoneSameInstant(UTC).toLocalDateTime()));
+      statement.setTimestamp(3,
+          Timestamp.valueOf(entity.getBirthDate().atZoneSimilarLocal(UTC).toLocalDateTime())
+      );
       statement.setLong(4, entity.getId());
       statement.executeUpdate();
-      if (statement instanceof StatementImpl impl) {
+      System.out.printf("Foram afetados %s registros na base de dados", statement.getUpdateCount());
+      if (statement instanceof StatementImpl impl)
         entity.setId(impl.getLastInsertID());
-      }
-      int affectedRows = statement.getUpdateCount();
-      System.out.printf("Updated %s employee record(s) from the database.%n", affectedRows);
-
-    } catch (SQLException e) {
-      System.err.println("Error inserting employee: " + e.getMessage());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
   }
 
   public void delete(final long id) {
     try (
         var connection = ConnectionUtil.getConnection();
-        var statement = connection.prepareStatement("DELETE FROM employees WHERE id = ?;");
+        var statement = connection.prepareStatement("DELETE FROM employees WHERE id = ?")
     ) {
       statement.setLong(1, id);
       statement.executeUpdate();
-    } catch (SQLException e) {
-      System.err.println("Error in deleting employee: " + e.getMessage());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
   }
 
   public List<EmployeeEntity> findAll() {
-    List<EmployeeEntity> employees = new ArrayList<>();
+    List<EmployeeEntity> entities = new ArrayList<>();
     try (
         var connection = ConnectionUtil.getConnection();
-        var statement = connection.createStatement();
+        var statement = connection.createStatement()
     ) {
       statement.executeQuery("SELECT * FROM employees ORDER BY name");
       var resultSet = statement.getResultSet();
@@ -128,40 +136,61 @@ public class EmployeeParamDAO {
         entity.setId(resultSet.getLong("id"));
         entity.setName(resultSet.getString("name"));
         entity.setSalary(resultSet.getBigDecimal("salary"));
-        var birthdateIstant = resultSet.getTimestamp("birthdate").toInstant();
-        entity.setBirthDate(OffsetDateTime.ofInstant(birthdateIstant, UTC));
-        employees.add(entity);
+        var birthdateInstant = resultSet.getTimestamp("birthdate").toInstant();
+        entity.setBirthDate(OffsetDateTime.ofInstant(birthdateInstant, UTC));
+        entity.setContacts(contactDAO.findByEmployeeId(resultSet.getLong("id")));
+        entities.add(entity);
       }
-    } catch (SQLException e) {
-      System.err.println("Error in fetching all employees: " + e.getMessage());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
-    return employees;
+    return entities;
   }
 
   public EmployeeEntity findById(final long id) {
     var entity = new EmployeeEntity();
+    var sql = "SELECT e.id employee_id,\n" +
+        "       e.name,\n" +
+        "       e.salary,\n" +
+        "       e.birthdate,\n" +
+        "       c.id contact_id,\n" +
+        "       c.description,\n" +
+        "       c.type\n" +
+        "  FROM employees e\n" +
+        " LEFT JOIN contacts c\n" +
+        "   ON c.employee_id = e.id \n" +
+        "WHERE e.id = ?";
     try (
         var connection = ConnectionUtil.getConnection();
-        var statement = connection.prepareStatement("SELECT * FROM employees WHERE id = ?;");
+        var statement = connection.prepareStatement(sql)
     ) {
       statement.setLong(1, id);
       statement.executeQuery();
       var resultSet = statement.getResultSet();
       if (resultSet.next()) {
-        entity.setId(resultSet.getLong("id"));
+        entity.setId(resultSet.getLong("employee_id"));
         entity.setName(resultSet.getString("name"));
         entity.setSalary(resultSet.getBigDecimal("salary"));
-        var birthdateIstant = resultSet.getTimestamp("birthdate").toInstant();
-        entity.setBirthDate(OffsetDateTime.ofInstant(birthdateIstant, UTC));
+        var birthdateInstant = resultSet.getTimestamp("birthdate").toInstant();
+        entity.setBirthDate(OffsetDateTime.ofInstant(birthdateInstant, UTC));
+        entity.setContacts(new ArrayList<>());
+        do {
+          var contact = new ContactEntity();
+          contact.setId(resultSet.getLong("contact_id"));
+          contact.setDescription(resultSet.getString("description"));
+          contact.setType(resultSet.getString("type"));
+          entity.getContacts().add(contact);
+        } while (resultSet.next());
       }
-    } catch (SQLException e) {
-      System.err.println("Error in fetching all employees: " + e.getMessage());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
     }
     return entity;
   }
 
   private String formatOffsetDateTime(final OffsetDateTime dateTime) {
-    var utcDateTime = dateTime.withOffsetSameInstant(UTC);
-    return utcDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    var utcDatetime = dateTime.withOffsetSameInstant(UTC);
+    return utcDatetime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
   }
+
 }

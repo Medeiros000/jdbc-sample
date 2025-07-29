@@ -10,6 +10,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import br.com.dio.dao.ContactDAO;
+import br.com.dio.entity.ContactEntity;
 import org.flywaydb.core.Flyway;
 
 import br.com.dio.dao.EmployeeAuditDAO;
@@ -21,6 +23,7 @@ public class Main {
 
   private final static EmployeeParamDAO employeeParamDAO = new EmployeeParamDAO();
   private final static EmployeeAuditDAO employeeAuditDAO = new EmployeeAuditDAO();
+  private final static ContactDAO contactDAO = new ContactDAO();
   private final static Faker faker = new Faker(Locale.of("pt", "BR"));
 
   private static void stopAndGo(int seconds) {
@@ -38,7 +41,31 @@ public class Main {
     flyway.migrate();
     stopAndGo(1);
 
-    var entities = Stream.generate(() -> {
+//    var employee = employeeParamDAO.findById(1);
+//    System.out.println(employee);
+//
+//    var employee1 = new EmployeeEntity();
+//    employee1.setName("Junior");
+//    employee1.setSalary(new BigDecimal("3500"));
+//    employee1.setBirthDate(OffsetDateTime.now().minusYears(44));
+//    System.out.println(employee1);
+//    employeeParamDAO.insert(employee1);
+//    System.out.println(employee1);
+//
+//    var contact1 = new ContactEntity();
+//    contact1.setDescription("jr@jdbc.com");
+//    contact1.setType("email");
+//    contact1.setEmployee(employee1);
+//    contactDAO.insert(contact1);
+//
+//
+//    var contact2 = new ContactEntity();
+//    contact2.setDescription("85955555555");
+//    contact2.setType("celular");
+//    contact2.setEmployee(employee1);
+//    contactDAO.insert(contact2);
+
+    /*var entities = Stream.generate(() -> {
       var employee = new EmployeeEntity();
       employee.setName(faker.name().fullName());
       employee.setSalary(new BigDecimal(faker.number().digits(4)));
@@ -49,7 +76,7 @@ public class Main {
       return employee;
     }).limit(4000).toList();
 
-    employeeParamDAO.insertBatch(entities);
+    employeeParamDAO.insertBatch(entities);*/
 
     /*var result = employeeDAO.findAll();
     result.forEach(System.out::println);
